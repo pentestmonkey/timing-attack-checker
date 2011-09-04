@@ -11,10 +11,6 @@ In its simplest form, you give it two commands you want it to record the executi
 timing-attack-check.pl 'login.pl -u knownuser -p x' 'login.pl -u notexist -p x'
 The data is optionally saved in tab-delimited format for import into a spreadsheet.  Some raw stats are also output to help you decide if you've found a timing attack or not.
 
-[ Download ]
-
-Get the latest version from github [TODO LINK]
-
 [ Usage ]
 
 timing-attack-checker v1.0 http://pentestmonkey.net/tools/timing-attack-checker
