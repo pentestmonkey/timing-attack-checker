@@ -1,0 +1,96 @@
+Homepage: http://pentestmonkey.net/tools/timing-attack-checker
+
+timing-attack-checker is a simple PERL script that helps you check for timing attacks.
+
+The most common form of timing attack I've noticed while pentesting is that the server may take longer to respond to a valid username than to an invalid username.  This can be handy for bruteforcing a list of valid usernames.  I'll work through an example of such an attack below.
+
+The script could also be used to testing other types of timing attack.  It should provide microsecond-resolution timing.
+
+In its simplest form, you give it two commands you want it to record the execution time of.  It will run those commands 100 times (by default), recording how long it takes.
+
+timing-attack-check.pl 'login.pl -u knownuser -p x' 'login.pl -u notexist -p x'
+The data is optionally saved in tab-delimited format for import into a spreadsheet.  Some raw stats are also output to help you decide if you've found a timing attack or not.
+
+[ Download ]
+
+Get the latest version from github [TODO LINK]
+
+[ Usage ]
+
+timing-attack-checker v1.0 http://pentestmonkey.net/tools/timing-attack-checker
+
+Usage: timing-attack-check.pl [ options ] 'cmd1' 'cmd2' ['cmd3' ...]
+
+options are:
+  -n N      Number of times to run the commands
+  -o file   File to write tab delimited data to
+
+Example:
+  timing-attack-check.pl 'login.pl -u knownuser -p x' 'login.pl -u notexist -p x'
+
+[ Dependencies ]
+
+* PERL
+* Linux (because I use /dev/null for some output)
+* Time::HiRes module (probably installed by default - it is on Ubuntu 11.04)
+
+[ Worked Example ]
+
+I set up an SSH server that only allowed logins using keys, not passwords.  I wanted to know if the server would take longer to respond to a login attempt for a valid username than for an invalid username - presumably it does less work if the username is invalid.
+
+I used the following usernames for testing:
+
+"x" the name of an account that exists.  It also has an ~/.ssh/authorized_keys file
+"y" the name of a non-existent account.
+"z" the name of an account that exists.  It has no ~/.ssh/authorized_keys file
+I ran the following command to make 40 login attempts for each:
+
+$ timing-attack-checker.pl -o data.txt -n 40 'ssh x@host' 'ssh y@host' 'ssh z@host'
+The script output the following:
+
+[D] Running command: ssh x@host
+[D] Command took 0.464256 secs
+[D] Running command: ssh y@host
+[D] Command took 0.115495 secs
+[D] Running command: ssh z@host
+[D] Command took 0.128768 secs
+[D] Running command: ssh x@host
+[D] Command took 0.125885 secs
+[D] Running command: ssh y@host
+... snip ...
+=================================================
+Results for: ssh x@host
+Average time: 0.143035425
+Minimum time: 0.10777
+Maximum time: 0.464256
+Standard deviation: 0.0608662980593068 (i.e. 68% of times within 1 sd, 95% within 2 sd)
+Was fastest on 3 out of 40 occassions (7.5% of the time)
+Was slowest on 10 out of 40 occassions (25% of the time)
+=================================================
+Results for: ssh y@host
+Average time: 0.120723175
+Minimum time: 0.095311
+Maximum time: 0.206071
+Standard deviation: 0.0171279751063684 (i.e. 68% of times within 1 sd, 95% within 2 sd)
+Was fastest on 36 out of 40 occassions (90% of the time)
+Was slowest on 3 out of 40 occassions (7.5% of the time)
+=================================================
+Results for: ssh z@host
+Average time: 0.132942175
+Minimum time: 0.114824
+Maximum time: 0.154482
+Standard deviation: 0.00611497853997666 (i.e. 68% of times within 1 sd, 95% within 2 sd)
+Was fastest on 1 out of 40 occassions (2.5% of the time)
+Was slowest on 27 out of 40 occassions (67.5% of the time)
+=================================================
+[+] Saving tab-delimited data to data.txt
+There are a lot of stats there.  Let's discuss each in turn an see if it leads us to believe that there's a username enumeration issue:
+
+* Average time: This ranges from about 0.12 secs to 0.14 secs.  That's a difference of more than 10%.  It's also comparable to a standard deviation (depending which of the 3 you use).  It could be random noise caused by the laggy wireless network I ran it over.  "x" looks pretty slow.  "y" looks pretty fast.
+* Min/Max time: The min and max times for each login attempt would ideally be very similar.  We see that for some usernames the max is 2x or 4x higher than the min.  This shows we might have a choppy network connection.  Or maybe the client or server is busy.  This min/max helps to show the consistency (or otherwise) of the data collected.  Our samples aren't particularly consistent.
+* Standard Deviation: How close our samples are to the average.  If themin/max of your sample set are similar and the difference between average login time for "x" and "y" (say) is more than 2 standard deviations, I think you can be pretty sure you've found a timing attack.  That doesn't apply to the data we collected here (more like 1 sd).
+* Fastest/Slowest: Shows how consistently a command was the fastest/slowest in its round.  This can be useful for busy network/hosts if you can assume that all attempts will be slowed down consistently by network/host problems.  Logins were faster for "y" on 90% attempts, compared to the 33% you'd expect if no timing attack was present.  This seems quite compelling evidence that we can detect accounts that don't exist - remember "y" doesn't exist.
+
+So in conclusion, it seems that it would be possible to bruteforce a list of usernames that exist on the server tested.
+
+More generally, you'll probably want to run only two commands, not three or more.  The option is there if you need it, though.
